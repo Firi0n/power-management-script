@@ -83,13 +83,15 @@ elif [ -d /etc/cmdline.d ] || command -v bootctl >/dev/null 2>&1; then
   echo "$CMDLINE_PARAMS" > /etc/cmdline.d/power.conf
 fi
 
-echo "=== 5. Disattivazione Servizi nvidia-powerd ed nvidia-persistenced ==="
+echo "=== 5. Gestione Servizi NVIDIA (Powerd, Persistenced & Standby) ==="
 systemctl stop nvidia-powerd 2>/dev/null || true
 systemctl disable nvidia-powerd 2>/dev/null || true
 systemctl mask nvidia-powerd 2>/dev/null || true
 
 systemctl stop nvidia-persistenced 2>/dev/null || true
 systemctl disable nvidia-persistenced 2>/dev/null || true
+
+systemctl enable nvidia-suspend.service nvidia-hibernate.service nvidia-resume.service 2>/dev/null || true
 
 echo "=== 6. Ottimizzazione Frequenze ed EPP CPU AMD Ryzen ==="
 for epp_path in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
