@@ -93,24 +93,17 @@ systemctl disable nvidia-persistenced 2>/dev/null || true
 
 systemctl disable nvidia-suspend.service nvidia-hibernate.service nvidia-resume.service 2>/dev/null || true
 
-echo "=== 6. Ottimizzazione Frequenze ed EPP CPU AMD Ryzen (balance_power per video 1080p fluidi) ==="
-for epp_path in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
-  [ -w "$epp_path" ] && echo "balance_power" > "$epp_path" 2>/dev/null || true
-done
-
-for gov_path in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-  [ -w "$gov_path" ] && echo "powersave" > "$gov_path" 2>/dev/null || true
-done
-
-echo "=== 7. Ricarica Regole Udev ==="
+echo "=== 6. Coesistenza Nativa con i Profili Hardware Lenovo (platform_profile / FN+Q) ==="
+# Lasciamo che power-profiles-daemon coordini nativamente l'EPP della CPU ed il platform_profile Lenovo (ideapad_laptop)
+echo "--> Ricarica Regole Udev PCI..."
 udevadm control --reload-rules
 udevadm trigger
 
-echo "=== 8. Impostazione Profilo Power Saver ==="
+echo "=== 7. Impostazione Profilo Power Saver Compatibile Lenovo ==="
 powerprofilesctl set power-saver 2>/dev/null || true
 
 if [ "$APPLY_NIRI" = true ]; then
-  echo "=== 9. Configurazione Niri Compositor (~/.config/niri/config.kdl) ==="
+  echo "=== 8. Configurazione Niri Compositor (~/.config/niri/config.kdl) ==="
   USER_HOME=$(eval echo ~${SUDO_USER:-$USER})
   NIRI_CONF="$USER_HOME/.config/niri/config.kdl"
   
