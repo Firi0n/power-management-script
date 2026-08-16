@@ -25,23 +25,14 @@ options nvidia NVreg_PreserveVideoMemoryAllocations=1
 options nvidia-drm modeset=1 fbdev=1
 EOF
 
-echo "=== 2. Configurazione Modules-Load NVIDIA (/etc/modules-load.d/nvidia.conf) ==="
-mkdir -p /etc/modules-load.d/
-cat << 'EOF' > /etc/modules-load.d/nvidia.conf
-nvidia
-nvidia_modeset
-nvidia_uvm
-nvidia_drm
-EOF
-
-echo "=== 3. Configurazione Regole Udev PCI NVIDIA (/etc/udev/rules.d/80-nvidia-pm.rules) ==="
+echo "=== 2. Configurazione Regole Udev PCI NVIDIA (/etc/udev/rules.d/80-nvidia-pm.rules) ==="
 cat << 'EOF' > /etc/udev/rules.d/80-nvidia-pm.rules
 # Enable runtime PM for all NVIDIA PCI devices on any udev event (boot, change, unplug)
 SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", TEST=="power/control", ATTR{power/control}="auto"
 EOF
 
 if [ "$APPLY_NIRI" = true ]; then
-  echo "=== 4. Profilo Applicativo NVIDIA VRAM per Niri (/etc/nvidia/nvidia-application-profiles-rc.d/50-niri.json) ==="
+  echo "=== 3. Profilo Applicativo NVIDIA VRAM per Niri (/etc/nvidia/nvidia-application-profiles-rc.d/50-niri.json) ==="
   mkdir -p /etc/nvidia/nvidia-application-profiles-rc.d/
   cat << 'EOF' > /etc/nvidia/nvidia-application-profiles-rc.d/50-niri.json
 {
@@ -63,7 +54,7 @@ if [ "$APPLY_NIRI" = true ]; then
 EOF
 fi
 
-echo "=== 5. Rilevamento ed Aggiornamento Automatico del Bootloader ==="
+echo "=== 4. Rilevamento ed Aggiornamento Automatico del Bootloader ==="
 CMDLINE_PARAMS="amdgpu.backlight=0 rcutree.enable_rcu_lazy=1"
 
 if [ -f /etc/default/limine ] || command -v limine-update >/dev/null 2>&1; then
@@ -92,7 +83,7 @@ elif [ -d /etc/cmdline.d ] || command -v bootctl >/dev/null 2>&1; then
   echo "$CMDLINE_PARAMS" > /etc/cmdline.d/power.conf
 fi
 
-echo "=== 6. Disattivazione Servizi nvidia-powerd ed nvidia-persistenced ==="
+echo "=== 5. Disattivazione Servizi nvidia-powerd ed nvidia-persistenced ==="
 systemctl stop nvidia-powerd 2>/dev/null || true
 systemctl disable nvidia-powerd 2>/dev/null || true
 systemctl mask nvidia-powerd 2>/dev/null || true
@@ -102,16 +93,16 @@ systemctl disable nvidia-persistenced 2>/dev/null || true
 
 systemctl disable nvidia-suspend.service nvidia-hibernate.service nvidia-resume.service 2>/dev/null || true
 
-echo "=== 7. Coesistenza Nativa con i Profili Hardware Lenovo (platform_profile / FN+Q) ==="
+echo "=== 6. Coesistenza Nativa con i Profili Hardware Lenovo (platform_profile / FN+Q) ==="
 echo "--> Ricarica Regole Udev PCI..."
 udevadm control --reload-rules
 udevadm trigger
 
-echo "=== 8. Impostazione Profilo Power Saver Compatibile Lenovo ==="
+echo "=== 7. Impostazione Profilo Power Saver Compatibile Lenovo ==="
 powerprofilesctl set power-saver 2>/dev/null || true
 
 if [ "$APPLY_NIRI" = true ]; then
-  echo "=== 9. Configurazione Niri Compositor (~/.config/niri/config.kdl) ==="
+  echo "=== 8. Configurazione Niri Compositor (~/.config/niri/config.kdl) ==="
   USER_HOME=$(eval echo ~${SUDO_USER:-$USER})
   NIRI_CONF="$USER_HOME/.config/niri/config.kdl"
   
