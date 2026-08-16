@@ -93,9 +93,9 @@ systemctl disable nvidia-persistenced 2>/dev/null || true
 
 systemctl disable nvidia-suspend.service nvidia-hibernate.service nvidia-resume.service 2>/dev/null || true
 
-echo "=== 6. Ottimizzazione Frequenze ed EPP CPU AMD Ryzen ==="
+echo "=== 6. Ottimizzazione Frequenze ed EPP CPU AMD Ryzen (balance_power per video 1080p fluidi) ==="
 for epp_path in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
-  [ -w "$epp_path" ] && echo "power" > "$epp_path" 2>/dev/null || true
+  [ -w "$epp_path" ] && echo "balance_power" > "$epp_path" 2>/dev/null || true
 done
 
 for gov_path in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
