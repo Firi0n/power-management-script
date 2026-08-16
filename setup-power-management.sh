@@ -94,7 +94,6 @@ systemctl disable nvidia-persistenced 2>/dev/null || true
 systemctl disable nvidia-suspend.service nvidia-hibernate.service nvidia-resume.service 2>/dev/null || true
 
 echo "=== 6. Coesistenza Nativa con i Profili Hardware Lenovo (platform_profile / FN+Q) ==="
-# Lasciamo che power-profiles-daemon coordini nativamente l'EPP della CPU ed il platform_profile Lenovo (ideapad_laptop)
 echo "--> Ricarica Regole Udev PCI..."
 udevadm control --reload-rules
 udevadm trigger
@@ -107,22 +106,32 @@ if [ "$APPLY_NIRI" = true ]; then
   USER_HOME=$(eval echo ~${SUDO_USER:-$USER})
   NIRI_CONF="$USER_HOME/.config/niri/config.kdl"
   
-  # Rilevamento dinamico dell'indirizzo PCI dell'iGPU (AMD o Intel)
+  # Rilevamento dinamico dell'indirizzo PCI dell'iGPU (AMD o Intel) e dGPU (NVIDIA)
   IGPU_PCI=""
+  DGPU_PCI=""
   for dev in /sys/class/drm/renderD*/device; do
     drv=$(readlink -f "$dev/driver" 2>/dev/null || true)
     if echo "$drv" | grep -qE 'amdgpu|i915|xe'; then
       IGPU_PCI=$(basename "$(readlink -f "$dev")")
-      break
+    elif echo "$drv" | grep -qE 'nvidia'; then
+      DGPU_PCI=$(basename "$(readlink -f "$dev")")
     fi
   done
 
-  if [ -n "$IGPU_PCI" ]; then
-    IGPU_RENDER_PATH="/dev/dri/by-path/pci-${IGPU_PCI}-render"
-    echo "--> iGPU Rilevata dinamicamente: $IGPU_RENDER_PATH"
-    if [ -f "$NIRI_CONF" ]; then
+  if [ -f "$NIRI_CONF" ]; then
+    if [ -n "$IGPU_PCI" ]; then
+      IGPU_RENDER_PATH="/dev/dri/by-path/pci-${IGPU_PCI}-render"
+      echo "--> iGPU Rilevata dinamicamente: $IGPU_RENDER_PATH"
       if ! grep -q "render-drm-device" "$NIRI_CONF"; then
         sed -i "/debug {/a \\    render-drm-device \"$IGPU_RENDER_PATH\"" "$NIRI_CONF"
+      fi
+    fi
+
+    if [ -n "$DGPU_PCI" ]; then
+      DGPU_CARD_PATH="/dev/dri/by-path/pci-${DGPU_PCI}-card"
+      echo "--> dGPU Output Card Rilevata dinamicamente per ignore-drm-device: $DGPU_CARD_PATH"
+      if ! grep -q "ignore-drm-device" "$NIRI_CONF"; then
+        sed -i "/debug {/a \\    ignore-drm-device \"$DGPU_CARD_PATH\"" "$NIRI_CONF"
       fi
     fi
   fi
