@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# SCRIPT 100% UNIVERSIALE DI POWER MANAGEMENT TOTALE — LAPTOP HYBRID (AMD/INTEL + NVIDIA)
+# SCRIPT UNIVERSALE DI POWER MANAGEMENT TOTALE — LAPTOP HYBRID (AMD/INTEL + NVIDIA)
 # Su CachyOS / Arch Linux / Fedora / Ubuntu / Debian / Manjaro / Pop!_OS
 # Uso: sudo ./setup-power-management.sh [--niri|-n]
 # ==============================================================================
@@ -18,6 +18,12 @@ for arg in "$@"; do
   esac
 done
 
+if [ "$EUID" -ne 0 ]; then
+  echo "❌ Errore: Esegui questo script con privilegi root (sudo)!"
+  echo "Uso: sudo ./setup-power-management.sh [--niri|-n]"
+  exit 1
+fi
+
 echo "=== 1. Configurazione Modprobe NVIDIA (/etc/modprobe.d/nvidia-power.conf) ==="
 cat << 'EOF' > /etc/modprobe.d/nvidia-power.conf
 options nvidia NVreg_DynamicPowerManagement=0x02
@@ -25,14 +31,29 @@ options nvidia NVreg_PreserveVideoMemoryAllocations=1
 options nvidia-drm modeset=1 fbdev=1
 EOF
 
-echo "=== 2. Configurazione Regole Udev PCI NVIDIA (/etc/udev/rules.d/80-nvidia-pm.rules) ==="
+echo "=== 2. Configurazione Regole Udev PCI & USB Universali ==="
 cat << 'EOF' > /etc/udev/rules.d/80-nvidia-pm.rules
 # Enable runtime PM for all NVIDIA PCI devices on any udev event (boot, change, unplug)
 SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", TEST=="power/control", ATTR{power/control}="auto"
 EOF
 
+cat << 'EOF' > /etc/udev/rules.d/99-pci-pm.rules
+# Enable Runtime Power Management for all PCI devices (NVMe, Wi-Fi, Ethernet, iGPU)
+ACTION=="add", SUBSYSTEM=="pci", ATTR{power/control}="auto"
+EOF
+
+cat << 'EOF' > /etc/udev/rules.d/99-usb-pm.rules
+# Enable Autosuspend for USB devices
+ACTION=="add", SUBSYSTEM=="usb", TEST=="power/control", ATTR{power/control}="auto"
+EOF
+
+echo "=== 3. Configurazione Risparmio Energetico Audio ==="
+cat << 'EOF' > /etc/modprobe.d/audio-powersave.conf
+options snd_hda_intel power_save=1 power_save_controller=Y
+EOF
+
 if [ "$APPLY_NIRI" = true ]; then
-  echo "=== 3. Profilo Applicativo NVIDIA VRAM per Niri (/etc/nvidia/nvidia-application-profiles-rc.d/50-niri.json) ==="
+  echo "=== 4. Profilo Applicativo NVIDIA VRAM per Niri (/etc/nvidia/nvidia-application-profiles-rc.d/50-niri.json) ==="
   mkdir -p /etc/nvidia/nvidia-application-profiles-rc.d/
   cat << 'EOF' > /etc/nvidia/nvidia-application-profiles-rc.d/50-niri.json
 {
@@ -54,36 +75,7 @@ if [ "$APPLY_NIRI" = true ]; then
 EOF
 fi
 
-echo "=== 4. Rilevamento ed Aggiornamento Automatico del Bootloader ==="
-CMDLINE_PARAMS="amdgpu.backlight=0 rcutree.enable_rcu_lazy=1"
-
-if [ -f /etc/default/limine ] || command -v limine-update >/dev/null 2>&1; then
-  echo "--> Rilevato Bootloader: Limine"
-  if [ -f /etc/default/limine ]; then
-    if ! grep -q "amdgpu.backlight=0" /etc/default/limine; then
-      sed -i 's/KERNEL_CMDLINE\[default\]+="/KERNEL_CMDLINE[default]+="amdgpu.backlight=0 rcutree.enable_rcu_lazy=1 /g' /etc/default/limine
-    fi
-  fi
-  if command -v limine-update >/dev/null 2>&1; then
-    limine-update
-  fi
-elif [ -f /etc/default/grub ] || command -v grub-mkconfig >/dev/null 2>&1; then
-  echo "--> Rilevato Bootloader: GRUB"
-  if ! grep -q "amdgpu.backlight=0" /etc/default/grub; then
-    sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/GRUB_CMDLINE_LINUX_DEFAULT="amdgpu.backlight=0 rcutree.enable_rcu_lazy=1 /g' /etc/default/grub
-  fi
-  if command -v grub-mkconfig >/dev/null 2>&1; then
-    grub-mkconfig -o /boot/grub/grub.cfg
-  elif command -v update-grub >/dev/null 2>&1; then
-    update-grub
-  fi
-elif [ -d /etc/cmdline.d ] || command -v bootctl >/dev/null 2>&1; then
-  echo "--> Rilevato Bootloader: systemd-boot / cmdline.d"
-  mkdir -p /etc/cmdline.d
-  echo "$CMDLINE_PARAMS" > /etc/cmdline.d/power.conf
-fi
-
-echo "=== 5. Disattivazione Servizi nvidia-powerd ed nvidia-persistenced ==="
+echo "=== 5. Disattivazione Servizi Background Polling NVIDIA ==="
 systemctl stop nvidia-powerd 2>/dev/null || true
 systemctl disable nvidia-powerd 2>/dev/null || true
 systemctl mask nvidia-powerd 2>/dev/null || true
@@ -93,12 +85,23 @@ systemctl disable nvidia-persistenced 2>/dev/null || true
 
 systemctl disable nvidia-suspend.service nvidia-hibernate.service nvidia-resume.service 2>/dev/null || true
 
-echo "=== 6. Coesistenza Nativa con i Profili Hardware Lenovo (platform_profile / FN+Q) ==="
-echo "--> Ricarica Regole Udev PCI..."
+echo "=== 6. Ricarica Regole Udev ed Applicazione a Caldo ==="
 udevadm control --reload-rules
 udevadm trigger
 
-echo "=== 7. Impostazione Profilo Power Saver Compatibile Lenovo ==="
+for dev in /sys/bus/pci/devices/*; do
+  if [ -f "$dev/power/control" ]; then
+    echo "auto" > "$dev/power/control" 2>/dev/null || true
+  fi
+done
+
+for dev in /sys/bus/usb/devices/*; do
+  if [ -f "$dev/power/control" ]; then
+    echo "auto" > "$dev/power/control" 2>/dev/null || true
+  fi
+done
+
+echo "=== 7. Impostazione Profilo Power Saver ==="
 powerprofilesctl set power-saver 2>/dev/null || true
 
 if [ "$APPLY_NIRI" = true ]; then
@@ -106,37 +109,31 @@ if [ "$APPLY_NIRI" = true ]; then
   USER_HOME=$(eval echo ~${SUDO_USER:-$USER})
   NIRI_CONF="$USER_HOME/.config/niri/config.kdl"
   
-  # Rilevamento dinamico dell'indirizzo PCI dell'iGPU (AMD o Intel) e dGPU (NVIDIA)
+  # Rilevamento dinamico dell'indirizzo PCI dell'iGPU (AMD o Intel)
   IGPU_PCI=""
-  DGPU_PCI=""
   for dev in /sys/class/drm/renderD*/device; do
     drv=$(readlink -f "$dev/driver" 2>/dev/null || true)
     if echo "$drv" | grep -qE 'amdgpu|i915|xe'; then
       IGPU_PCI=$(basename "$(readlink -f "$dev")")
-    elif echo "$drv" | grep -qE 'nvidia'; then
-      DGPU_PCI=$(basename "$(readlink -f "$dev")")
     fi
   done
 
-  if [ -f "$NIRI_CONF" ]; then
-    if [ -n "$IGPU_PCI" ]; then
-      IGPU_RENDER_PATH="/dev/dri/by-path/pci-${IGPU_PCI}-render"
-      echo "--> iGPU Rilevata dinamicamente: $IGPU_RENDER_PATH"
-      if ! grep -q "render-drm-device" "$NIRI_CONF"; then
-        sed -i "/debug {/a \\    render-drm-device \"$IGPU_RENDER_PATH\"" "$NIRI_CONF"
-      fi
-    fi
-
-    if [ -n "$DGPU_PCI" ]; then
-      DGPU_CARD_PATH="/dev/dri/by-path/pci-${DGPU_PCI}-card"
-      echo "--> dGPU Output Card Rilevata dinamicamente per ignore-drm-device: $DGPU_CARD_PATH"
-      if ! grep -q "ignore-drm-device" "$NIRI_CONF"; then
-        sed -i "/debug {/a \\    ignore-drm-device \"$DGPU_CARD_PATH\"" "$NIRI_CONF"
-      fi
+  if [ -f "$NIRI_CONF" ] && [ -n "$IGPU_PCI" ]; then
+    IGPU_RENDER_PATH="/dev/dri/by-path/pci-${IGPU_PCI}-render"
+    echo "--> iGPU Rilevata dinamicamente: $IGPU_RENDER_PATH"
+    if ! grep -q "render-drm-device" "$NIRI_CONF"; then
+      sed -i "/debug {/a \\    render-drm-device \"$IGPU_RENDER_PATH\"" "$NIRI_CONF"
     fi
   fi
 fi
 
 echo "=============================================================================="
-echo " OK! Master Script 100% Universale eseguito con successo!"
+echo " ✅ Master Script completato con successo!"
 echo "=============================================================================="
+
+sleep 3
+BAT_PATH=$(upower -e | grep BAT | head -n 1)
+if [ -n "$BAT_PATH" ]; then
+  echo -e "\n=== CONSUMO BATTERIA RILEVATO ==="
+  upower -i "$BAT_PATH" | grep -iE 'energy-rate|percentage|state|time to empty'
+fi

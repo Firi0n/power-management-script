@@ -9,22 +9,23 @@ Tested and optimized for **CachyOS, Arch Linux, Fedora, Ubuntu, Debian, Manjaro,
 ## 🚀 Key Features
 
 - **NVIDIA D3cold (0 Watt Idle):** Configures `NVreg_DynamicPowerManagement=0x02` to power down the discrete NVIDIA GPU completely when not in use.
-- **Universal Udev PM Rule:** Applies PCIe runtime power management (`power/control="auto"`) across all system events (**Boot, Power Profile Switches, and AC Charger Unplugging**).
-- **Auto Bootloader Detection:** Dynamically detects and updates **Limine**, **GRUB**, or **systemd-boot** with optimal kernel parameters (`amdgpu.backlight=0`, `rcutree.enable_rcu_lazy=1`).
-- **NVIDIA Dynamic Boost & Persistence Cleanup:** Safely masks `nvidia-powerd` and disables `nvidia-persistenced` to prevent background hardware polling loops.
-- **CPU Frequency & EPP Tuning:** Configures `energy_performance_preference=power` and `scaling_governor=powersave` across all CPU cores.
-- **Modular Niri Compositor Support (`--niri` / `-n`):** Dynamically detects the integrated GPU (AMD `amdgpu` or Intel `i915`/`xe`) render node and configures Niri compositor and NVIDIA VRAM profiles (`50-niri.json`).
+- **Universal PCI & USB Runtime Power Management:** Installs `/etc/udev/rules.d/99-pci-pm.rules` and `99-usb-pm.rules` to enable runtime power management (`power/control="auto"`) across all PCI devices (NVMe SSDs, Wi-Fi, Ethernet, iGPU) and USB peripherals.
+- **Audio Power Savings:** Enables `snd_hda_intel` power save modes (`power_save=1` and `power_save_controller=Y`) in `/etc/modprobe.d/audio-powersave.conf`.
+- **Live Sysfs Application:** Immediately writes `power/control=auto` across `/sys/bus/pci/devices/` and `/sys/bus/usb/devices/` live without requiring a reboot.
+- **NVIDIA Background Cleanup:** Safely masks `nvidia-powerd` and disables `nvidia-persistenced` to prevent background hardware polling loops.
+- **Modular Niri Compositor Support (`--niri` / `-n`):** Dynamically detects the integrated GPU (AMD `amdgpu` or Intel `i915`/`xe`) render node and binds Niri compositor (`config.kdl`) to render exclusively on the iGPU.
+- **Real-Time Battery Metering:** Displays current power draw (`energy-rate` in Watts) using `upower`.
 
 ---
 
-## 📦 Quick Start & Usage
+## 📦 Usage & Options
 
 ### 1. Make the script executable
 ```bash
 chmod +x setup-power-management.sh
 ```
 
-### 2. Standard Usage (Any Desktop Environment or Window Manager)
+### 2. Standard Execution (Any DE / WM)
 ```bash
 sudo ./setup-power-management.sh
 ```
@@ -38,4 +39,4 @@ sudo ./setup-power-management.sh --niri
 ---
 
 ## 🛡️ Update-Safe & Permanent
-All configuration files created by this script are located in `/etc/modprobe.d/`, `/etc/udev/rules.d/`, `/etc/nvidia/`, and `/etc/default/`. They will **never be overwritten** by distribution package updates (`pacman -Syu`, `apt upgrade`, `dnf update`).
+All configuration files created by this script are located in `/etc/modprobe.d/` and `/etc/udev/rules.d/`. They are fully update-safe and will **never be overwritten** by distribution package updates (`pacman -Syu`).
