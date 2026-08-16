@@ -87,7 +87,6 @@ systemctl disable nvidia-suspend.service nvidia-hibernate.service nvidia-resume.
 
 echo "=== 6. Ricarica Regole Udev ed Applicazione a Caldo ==="
 udevadm control --reload-rules
-udevadm trigger
 
 for dev in /sys/bus/pci/devices/*; do
   if [ -f "$dev/power/control" ]; then
