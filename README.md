@@ -13,10 +13,11 @@ Tested and optimized for **CachyOS, Arch Linux, Fedora, Ubuntu, Debian, Manjaro,
 - **Dedicated NVIDIA PCI Udev PM Rule:** Installs `/etc/udev/rules.d/80-nvidia-pm.rules` to enforce runtime power management (`power/control="auto"`) specifically for NVIDIA PCI devices across all system events.
 - **Audio Power Saving:** Enables `snd_hda_intel` power save modes (`power_save=1` and `power_save_controller=Y`) in `/etc/modprobe.d/audio-powersave.conf`.
 - **Safe Operations & Automatic Backups (`write_with_backup`):** Checks existing configuration files before writing. If a file exists and differs, a timestamped backup (`.bak.YYYYMMDD-HHMMSS`) is saved automatically; identical files are skipped to avoid unnecessary disk I/O.
-- **Deduplication Engine:** 
+- **In-Place Bootloader Patching (`--update-bootloader`):** Safely appends `nvidia.NVreg_DynamicPowerManagement=0x02` and `rcutree.enable_rcu_lazy=1` in-place without clobbering machine-specific UUIDs, subvolume flags, or existing boot loader options.
+- **Multi-Layer Deduplication Engine:** 
   - Prevents creating duplicate VRAM profiles in `/etc/nvidia/nvidia-application-profiles-rc.d/` if a matching profile (`GLVidHeapReuseRatio`) already exists.
-  - Detects existing environment-based GPU forcing (`WLR_DRM_DEVICES`) before modifying Niri's `config.kdl`.
-- **NVIDIA Power & Sleep Service Management:** Safely masks `nvidia-powerd` and disables `nvidia-persistenced` to eliminate background hardware polling loops, while enabling `nvidia-suspend`, `nvidia-hibernate`, and `nvidia-resume` services for clean VRAM state preservation.
+  - Detects existing GPU forcing (`WLR_DRM_DEVICES`) across shell configs, `uwsm` (`~/.config/uwsm/env`), `systemctl --user`, and user systemd service units before modifying Niri's `config.kdl`.
+- **NVIDIA Power & Sleep Service Management:** Safely masks `nvidia-powerd` and disables `nvidia-persistenced` to eliminate background hardware polling loops, while enabling `nvidia-suspend`, `nvidia-hibernate`, and `nvidia-resume` services for clean VRAM state preservation across system sleep/wake cycles.
 - **Modular Niri Compositor Support (`--niri` / `-n`):** Dynamically detects the integrated GPU (AMD `amdgpu` or Intel `i915`/`xe`) render node and binds Niri compositor (`config.kdl`) to render exclusively on the iGPU.
 - **Read-Only System Diagnostic Mode (`--status` / `-s`):** Reports GPU D3cold power state, active NVIDIA processes, systemd services, kernel parameters, and live battery power draw without making any changes.
 - **Dry-Run Preview Mode (`--dry-run` / `-d`):** Previews all file modifications without modifying disk contents.
@@ -41,20 +42,20 @@ sudo ./setup-power-management.sh
 | Flag | Short | Description |
 | :--- | :---: | :--- |
 | `--niri` | `-n` | Configures Niri Wayland compositor iGPU rendering |
-| `--update-bootloader` | `-b` | Automatically adds `nvidia.NVreg_DynamicPowerManagement=0x02` & `rcutree.enable_rcu_lazy=1` to bootloader |
+| `--update-bootloader` | `-b` | In-place patches bootloader parameters without overwriting existing configs |
 | `--status` | `-s` | Displays live GPU status, systemd services & power draw (Read-only, no root required) |
 | `--dry-run` | `-d` | Previews actions without writing files or changing services |
 | `--no-snapshot` | | Skips pre-execution Btrfs/Snapper/Timeshift snapshot |
 
 #### Examples:
 ```bash
-# Check live GPU and power status
+# Check live GPU and power status (no root required)
 ./setup-power-management.sh --status
 
 # Preview modifications before executing
 sudo ./setup-power-management.sh --dry-run
 
-# Run full setup for Niri with automatic bootloader configuration
+# Run full setup for Niri with automatic in-place bootloader patching
 sudo ./setup-power-management.sh --niri --update-bootloader
 ```
 
