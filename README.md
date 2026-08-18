@@ -61,17 +61,14 @@ sudo ./setup-power-management.sh --niri --update-bootloader
 
 ---
 
-## 📌 Recommended Bootloader & Kernel Parameters
+## 🛠️ Bootloader Auto-Patching (`--update-bootloader` / `-b`)
 
-For optimal battery savings on AMD Ryzen + NVIDIA laptops, verify or add the following parameters to your bootloader command line:
+When executed with the `--update-bootloader` (or `-b`) flag, the script automatically patches your bootloader command line in-place with optimal power-saving parameters:
 
 - `nvidia.NVreg_DynamicPowerManagement=0x02` — Enables fine-grained D3cold GPU power state.
-- `rcutree.enable_rcu_lazy=1` — Reduces CPU micro-interrupts during idle.
+- `rcutree.enable_rcu_lazy=1` — Reduces AMD Ryzen CPU micro-interrupts during idle.
 
-### Bootloader File Locations:
-- **Limine:** Edit `/etc/default/limine`, then run `sudo limine-mkinitcpio`.
-- **systemd-boot:** Edit `/etc/cmdline.d/power.conf`.
-- **GRUB:** Edit `/etc/default/grub`, then run `sudo grub-mkconfig -o /boot/grub/grub.cfg`.
+The script automatically detects **Limine**, **systemd-boot**, or **GRUB**, patches the configuration in-place without overwriting machine-specific settings (UUIDs, subvolumes, existing flags), and triggers bootloader updates (`limine-mkinitcpio`, etc.) automatically.
 
 ---
 
