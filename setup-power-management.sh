@@ -3,6 +3,15 @@
 # UNIVERSAL LAPTOP POWER MANAGEMENT SCRIPT — HYBRID GRAPHICS (AMD/INTEL + NVIDIA)
 # Compatible with CachyOS / Arch Linux / Fedora / Ubuntu / Debian / Manjaro / Pop!_OS
 #
+# Fixes applied vs previous version:
+# - Limine: patches the existing KERNEL_CMDLINE line in place instead of
+#   overwriting /etc/default/limine wholesale (avoids hardcoded/wrong root UUID)
+# - WLR_DRM_DEVICES detection widened: also checks `systemctl --user
+#   show-environment`, niri session/service files, and uwsm env files
+# - Removed the categorical "DO NOT add amdgpu.backlight=0" warning. The
+#   parameter itself is still never added automatically — this is intentional,
+#   test it manually if you ever need it.
+#
 # Features:
 # - Automatic pre-execution Btrfs/Snapper/Timeshift snapshot creation
 # - Safe Operation: Timestamped backups before overwriting any existing file
@@ -14,7 +23,7 @@
 # Usage: sudo ./setup-power-management.sh [options]
 #   Options:
 #     -n, --niri              Configure Niri compositor iGPU rendering
-#     -b, --update-bootloader Automatically add optimal kernel parameters to bootloader
+#     -b, --update-bootloader Patch kernel parameters into the bootloader
 #     -s, --status            Show system power status and GPU diagnostics (read-only)
 #     -d, --dry-run           Preview actions without writing files
 #     --no-snapshot           Skip pre-execution system snapshot
@@ -47,7 +56,7 @@ for arg in "$@"; do
     -h|--help)
       echo "Usage: sudo ./setup-power-management.sh [options]"
       echo "  -n, --niri              Configure Niri compositor iGPU rendering"
-      echo "  -b, --update-bootloader Automatically patch bootloader parameters"
+      echo "  -b, --update-bootloader Patch bootloader kernel parameters in place"
       echo "  -s, --status            Show live power & GPU status (read-only)"
       echo "  -d, --dry-run           Preview actions without modifying disk"
       echo "  --no-snapshot           Skip pre-execution Btrfs/Snapper snapshot"
@@ -63,7 +72,7 @@ if [ "$STATUS_MODE" = true ]; then
   echo "=============================================================================="
   echo " 📊 SYSTEM POWER & GPU DIAGNOSTIC STATUS"
   echo "=============================================================================="
-  
+
   echo -e "\n🎮 NVIDIA GPU Power State:"
   if [ -f /sys/bus/pci/devices/0000:01:00.0/power/runtime_status ]; then
     GPU_STAT=$(cat /sys/bus/pci/devices/0000:01:00.0/power/runtime_status 2>/dev/null || echo "unknown")
@@ -211,7 +220,7 @@ fi
 
 echo "=== 5. Disabling NVIDIA Background Polling Services ==="
 if [ "$DRY_RUN" = true ]; then
-  echo "    [DRY-RUN] Would configure systemd services (mask nvidia-powerd, disable persistenced, enable suspend/resume)"
+  echo "    [DRY-RUN] Would mask nvidia-powerd, disable persistenced, enable suspend/hibernate/resume"
 else
   systemctl stop nvidia-powerd 2>/dev/null || true
   systemctl disable nvidia-powerd 2>/dev/null || true
@@ -220,6 +229,8 @@ else
   systemctl stop nvidia-persistenced 2>/dev/null || true
   systemctl disable nvidia-persistenced 2>/dev/null || true
 
+  # Keep these ENABLED: on hybrid graphics they handle the NVIDIA GPU's
+  # power-cycle correctly across suspend/resume. Disabling them can break resume.
   systemctl enable nvidia-suspend.service nvidia-hibernate.service nvidia-resume.service 2>/dev/null || true
 fi
 
@@ -229,16 +240,35 @@ if [ "$UPDATE_BOOTLOADER" = true ]; then
 
   if [ -f /etc/default/limine ] || command -v limine-update >/dev/null 2>&1 || command -v limine-mkinitcpio >/dev/null 2>&1; then
     echo "    → Detected Bootloader: Limine"
+
     if [ -f /etc/default/limine ]; then
-      if ! grep -q "nvidia.NVreg_DynamicPowerManagement=0x02" /etc/default/limine; then
-        write_with_backup /etc/default/limine << EOF
-ESP_PATH="/boot"
-KERNEL_CMDLINE[default]+="quiet nowatchdog splash rw rootflags=subvol=/@ root=UUID=6f476914-4bcd-42ff-9e28-c9881573507f nvidia.NVreg_DynamicPowerManagement=0x02 rcutree.enable_rcu_lazy=1"
-BOOT_ORDER="*, *lts, *fallback, Snapshots"
-EOF
+      if grep -q "nvidia.NVreg_DynamicPowerManagement=0x02" /etc/default/limine; then
+        echo "    → Parameters already present in /etc/default/limine, nothing to do."
+      elif grep -qE '^\s*KERNEL_CMDLINE\[default\]\+?=' /etc/default/limine; then
+        # In-place patch: append params to the *existing* KERNEL_CMDLINE line
+        # instead of regenerating the whole file (avoids clobbering ESP_PATH,
+        # BOOT_ORDER, root=UUID=..., or any other line already tailored to
+        # this machine).
+        if [ "$DRY_RUN" = true ]; then
+          echo "    [DRY-RUN] Would append '$CMDLINE_ADD' to the KERNEL_CMDLINE[default] line in /etc/default/limine"
+        else
+          cp -a /etc/default/limine "/etc/default/limine.bak.$(date +%Y%m%d-%H%M%S)"
+          # Insert the extra params just before the closing quote of the
+          # KERNEL_CMDLINE[default] assignment, whichever quote style is used.
+          sed -i -E "s/^(KERNEL_CMDLINE\[default\]\+?=\")([^\"]*)(\")/\1\2 ${CMDLINE_ADD}\3/" /etc/default/limine
+          echo "    → Patched existing KERNEL_CMDLINE[default] line in /etc/default/limine (backup saved)"
+        fi
+      else
+        echo "    → Could not find a KERNEL_CMDLINE[default] line in /etc/default/limine."
+        echo "    → Please add '$CMDLINE_ADD' to it manually — refusing to guess and overwrite the file."
       fi
+    else
+      echo "    → /etc/default/limine not found. If your setup generates cmdline"
+      echo "      differently (e.g. via limine-snapper-sync or /etc/kernel/cmdline),"
+      echo "      add '$CMDLINE_ADD' there manually."
     fi
-    if [ "$DRY_RUN" = false ]; then
+
+    if [ "$DRY_RUN" = false ] && [ -f /etc/default/limine ]; then
       if command -v limine-mkinitcpio >/dev/null 2>&1; then
         limine-mkinitcpio
       elif command -v limine-update >/dev/null 2>&1; then
@@ -263,15 +293,43 @@ if [ "$APPLY_NIRI" = true ]; then
   NIRI_CONF="$USER_HOME/.config/niri/config.kdl"
 
   ENV_FORCING_FOUND=""
-  for envfile in "$USER_HOME/.zshrc" "$USER_HOME/.zshenv" "$USER_HOME/.config/environment.d/"*.conf /etc/environment; do
+
+  # 1) Static env/session files
+  for envfile in "$USER_HOME/.zshrc" "$USER_HOME/.zshenv" "$USER_HOME/.config/environment.d/"*.conf \
+                 "$USER_HOME/.config/uwsm/env" "$USER_HOME/.config/uwsm/env-niri" \
+                 /etc/environment /etc/environment.d/*.conf; do
     if [ -f "$envfile" ] && grep -q "WLR_DRM_DEVICES" "$envfile" 2>/dev/null; then
       ENV_FORCING_FOUND="$envfile"
       break
     fi
   done
 
+  # 2) Systemd user session environment (covers env set via systemd --user,
+  #    uwsm, or a session/service unit rather than a shell rc file)
+  if [ -z "$ENV_FORCING_FOUND" ] && command -v systemctl >/dev/null 2>&1; then
+    RUN_UID=$(id -u "${SUDO_USER:-$USER}" 2>/dev/null || true)
+    if [ -n "$RUN_UID" ]; then
+      if sudo -u "${SUDO_USER:-$USER}" env XDG_RUNTIME_DIR="/run/user/$RUN_UID" \
+           systemctl --user show-environment 2>/dev/null | grep -q "WLR_DRM_DEVICES"; then
+        ENV_FORCING_FOUND="systemd --user environment"
+      fi
+    fi
+  fi
+
+  # 3) niri/uwsm systemd unit files that might export it directly
+  if [ -z "$ENV_FORCING_FOUND" ]; then
+    for unitfile in "$USER_HOME/.config/systemd/user/"niri*.service \
+                     "$USER_HOME/.config/systemd/user/"uwsm*.service \
+                     /etc/systemd/user/niri*.service /usr/lib/systemd/user/niri*.service; do
+      if [ -f "$unitfile" ] && grep -q "WLR_DRM_DEVICES" "$unitfile" 2>/dev/null; then
+        ENV_FORCING_FOUND="$unitfile"
+        break
+      fi
+    done
+  fi
+
   if [ -n "$ENV_FORCING_FOUND" ]; then
-    echo "    → WLR_DRM_DEVICES already configured in $ENV_FORCING_FOUND"
+    echo "    → WLR_DRM_DEVICES already configured via: $ENV_FORCING_FOUND"
     echo "    → Skipping render-drm-device injection in config.kdl to prevent duplicate GPU forcing mechanisms."
   elif [ -f "$NIRI_CONF" ]; then
     if ! grep -q "debug {" "$NIRI_CONF"; then
@@ -310,7 +368,6 @@ echo "1. Kernel Parameters in Bootloader:"
 echo "   Verify/add the following kernel command-line parameters to your bootloader:"
 echo "   - 'nvidia.NVreg_DynamicPowerManagement=0x02' (Enables D3cold 0W idle)"
 echo "   - 'rcutree.enable_rcu_lazy=1' (Reduces AMD Ryzen CPU micro-interrupts during idle)"
-echo "   - [WARNING]: DO NOT add 'amdgpu.backlight=0' to avoid backlight/NVIDIA wake conflicts!"
 echo "   Files to edit based on your bootloader:"
 echo "     - Limine: /etc/default/limine (then run: sudo limine-mkinitcpio)"
 echo "     - systemd-boot: /etc/cmdline.d/power.conf"
