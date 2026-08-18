@@ -68,9 +68,6 @@ For optimal battery savings on AMD Ryzen + NVIDIA laptops, verify or add the fol
 - `nvidia.NVreg_DynamicPowerManagement=0x02` — Enables fine-grained D3cold GPU power state.
 - `rcutree.enable_rcu_lazy=1` — Reduces CPU micro-interrupts during idle.
 
-> [!WARNING]
-> **DO NOT add `amdgpu.backlight=0`** to your bootloader parameters. Disabling AMD backlight forces display brightness control onto the NVIDIA WMI driver (`nvidia_wmi_ec_backlight`), causing the discrete GPU to wake up every time display brightness changes on battery power.
-
 ### Bootloader File Locations:
 - **Limine:** Edit `/etc/default/limine`, then run `sudo limine-mkinitcpio`.
 - **systemd-boot:** Edit `/etc/cmdline.d/power.conf`.
