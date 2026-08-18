@@ -1,5 +1,12 @@
 # ⚡ Universal Linux Laptop Power Management Script
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Bash Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?logo=gnu-bash&logoColor=white)](https://www.gnu.org/software/bash/)
+[![Arch Linux](https://img.shields.io/badge/Arch_Linux-Compatible-1793D1?logo=arch-linux&logoColor=white)](https://archlinux.org/)
+[![CachyOS](https://img.shields.io/badge/CachyOS-Optimized-00A88F)](https://cachyos.org/)
+[![NVIDIA D3cold](https://img.shields.io/badge/NVIDIA-D3cold_0W-76B900?logo=nvidia&logoColor=white)](https://www.nvidia.com/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
+
 An all-in-one, update-safe Bash script designed to optimize battery life and power management on hybrid-graphics Linux laptops (AMD/Intel + NVIDIA).
 
 Tested and optimized for **CachyOS, Arch Linux, Fedora, Ubuntu, Debian, Manjaro, and Pop!_OS**.
