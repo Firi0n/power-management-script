@@ -15,7 +15,7 @@ Tested and optimized for **CachyOS, Arch Linux, Fedora, Ubuntu, Debian, Manjaro,
 - **Deduplication Engine:** 
   - Prevents creating duplicate VRAM profiles in `/etc/nvidia/nvidia-application-profiles-rc.d/` if a matching profile (`GLVidHeapReuseRatio`) already exists.
   - Detects existing environment-based GPU forcing (`WLR_DRM_DEVICES`) before modifying Niri's `config.kdl`.
-- **NVIDIA Background Cleanup:** Safely masks `nvidia-powerd` and disables `nvidia-persistenced` to eliminate background hardware polling loops.
+- **NVIDIA Power & Sleep Service Management:** Safely masks `nvidia-powerd` and disables `nvidia-persistenced` to eliminate background hardware polling loops, while enabling `nvidia-suspend`, `nvidia-hibernate`, and `nvidia-resume` services for clean VRAM state preservation.
 - **Modular Niri Compositor Support (`--niri` / `-n`):** Dynamically detects the integrated GPU (AMD `amdgpu` or Intel `i915`/`xe`) render node and binds Niri compositor (`config.kdl`) to render exclusively on the iGPU.
 - **Real-Time Battery Metering:** Measures current power draw (`energy-rate` in Watts) using `upower`.
 

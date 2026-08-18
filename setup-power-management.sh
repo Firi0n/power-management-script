@@ -107,7 +107,7 @@ systemctl mask nvidia-powerd 2>/dev/null || true
 systemctl stop nvidia-persistenced 2>/dev/null || true
 systemctl disable nvidia-persistenced 2>/dev/null || true
 
-systemctl disable nvidia-suspend.service nvidia-hibernate.service nvidia-resume.service 2>/dev/null || true
+systemctl enable nvidia-suspend.service nvidia-hibernate.service nvidia-resume.service 2>/dev/null || true
 
 if [ "$APPLY_NIRI" = true ]; then
   echo "=== 6. Niri Compositor Configuration (~/.config/niri/config.kdl) ==="
